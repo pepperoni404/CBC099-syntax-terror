@@ -1,0 +1,51 @@
+﻿version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    environment:
+      POSTGRES_DB: courier
+      POSTGRES_USER: courier
+      POSTGRES_PASSWORD: courier
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U courier"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://courier:courier@db:5432/courier
+      JWT_SECRET: hackathon-secret-key-change-in-production
+      JWT_EXPIRY_HOURS: 8
+      OSRM_URL: https://router.project-osrm.org
+      OSRM_TIMEOUT: 3.0
+      HUB_LATITUDE: 12.9716
+      HUB_LONGITUDE: 77.5946
+      SERVICE_TIME_MINUTES: 5
+      NEAR_ROUTE_RADIUS_METERS: 2000
+      FALLBACK_ROAD_FACTOR: 1.3
+      FALLBACK_SPEED_KMH: 30
+      ALLOWED_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
