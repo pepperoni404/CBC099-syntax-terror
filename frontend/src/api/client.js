@@ -178,4 +178,30 @@ export const api = {
       method: 'POST',
     });
   },
+
+  // 3.6 Route Geometry (Follows roads via OSRM)
+  fetchRoute: async (coordinates) => {
+    let coordsStr = '';
+    if (typeof coordinates === 'string') {
+      coordsStr = coordinates;
+    } else if (Array.isArray(coordinates)) {
+      coordsStr = coordinates
+        .map((pt) => {
+          if (Array.isArray(pt)) {
+            // [lat, lng] -> OSRM expects lon,lat
+            return `${pt[1]},${pt[0]}`;
+          }
+          if (pt && typeof pt === 'object') {
+            const lat = pt.latitude ?? pt.lat;
+            const lng = pt.longitude ?? pt.lng;
+            return `${lng},${lat}`;
+          }
+          return pt;
+        })
+        .join(';');
+    }
+    const data = await apiFetch(`/route?coordinates=${encodeURIComponent(coordsStr)}`);
+    return Array.isArray(data) ? data : (data?.geometry || []);
+  },
 };
+

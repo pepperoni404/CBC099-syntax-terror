@@ -42,3 +42,48 @@ async def test_osrm_fallback_on_timeout():
         assert res["estimated"] is True
         assert len(res["matrix"]) == 2
         assert res["matrix"][0][1] > 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_route_geometry_fallback_on_timeout():
+    coords = "77.5946,12.9716;77.6100,12.9800"
+    with patch("httpx.AsyncClient.get", side_effect=httpx.TimeoutException("Timeout")):
+        from app.services.osrm import get_route_geometry
+        res = await get_route_geometry(coords)
+        assert res["estimated"] is True
+        assert len(res["geometry"]) == 2
+        assert res["geometry"][0] == [12.9716, 77.5946]
+        assert res["geometry"][1] == [12.9800, 77.6100]
+
+
+@pytest.mark.asyncio
+async def test_get_route_geometry_success():
+    coords = "77.5946,12.9716;77.6100,12.9800"
+    mock_response = {
+        "code": "Ok",
+        "routes": [
+            {
+                "geometry": {
+                    "coordinates": [[77.5946, 12.9716], [77.6000, 12.9750], [77.6100, 12.9800]]
+                },
+                "distance": 2500.0,
+                "duration": 300.0,
+            }
+        ],
+    }
+
+    class MockResp:
+        status_code = 200
+        def json(self):
+            return mock_response
+
+    with patch("httpx.AsyncClient.get", return_value=MockResp()):
+        from app.services.osrm import get_route_geometry
+        res = await get_route_geometry(coords)
+        assert res["estimated"] is False
+        assert len(res["geometry"]) == 3
+        # Converted to [lat, lng]
+        assert res["geometry"][0] == [12.9716, 77.5946]
+        assert res["geometry"][1] == [12.9750, 77.6000]
+        assert res["geometry"][2] == [12.9800, 77.6100]
+

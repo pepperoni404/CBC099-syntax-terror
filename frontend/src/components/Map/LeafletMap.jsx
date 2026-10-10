@@ -46,6 +46,10 @@ export function LeafletMap({
   zoom = 13,
   markers = [],
   polylines = [],
+  geometry = null,
+  routeColor = null,
+  routeWeight = 4,
+  routeOpacity = 0.8,
   onMapClick,
   children,
   className = '',
@@ -54,6 +58,16 @@ export function LeafletMap({
   const safeCenter = isValidLatLng(center)
     ? [Number(center[0]), Number(center[1])]
     : DEFAULT_HUB;
+
+  const combinedPolylines = [...polylines];
+  if (Array.isArray(geometry) && geometry.length >= 2) {
+    combinedPolylines.push({
+      positions: geometry,
+      color: routeColor || '#2563eb',
+      weight: routeWeight,
+      opacity: routeOpacity,
+    });
+  }
 
   return (
     <div className={`relative w-full h-full min-h-[300px] overflow-hidden rounded-lg border border-gray-200 shadow-sm ${className}`}>
@@ -74,13 +88,14 @@ export function LeafletMap({
         />
 
         {/* Route Polylines */}
-        {polylines.map((polyline, idx) => {
+        {combinedPolylines.map((polyline, idx) => {
           if (!Array.isArray(polyline.positions)) return null;
           const validPositions = polyline.positions
             .filter(isValidLatLng)
             .map((pos) => [Number(pos[0]), Number(pos[1])]);
 
           if (validPositions.length < 2) return null;
+
 
           return (
             <Polyline

@@ -15,7 +15,9 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
     if reset:
         db.query(StatusHistory).delete()
         db.query(PickupRequest).delete()
-        db.query(Agent).delete()
+        # Reset existing agents status and location instead of deleting to preserve active auth tokens
+        for a in db.query(Agent).all():
+            a.status = "idle"
         db.commit()
 
     agents_created = 0
@@ -23,6 +25,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
 
     # 1. Seed Agents
     existing_agents = {a.name: a for a in db.query(Agent).all()}
+
     demo_agents_spec = [
         {"name": "agent1", "password": "courier123", "shift_start": time(8, 0), "shift_end": time(17, 0), "lat": 12.9716, "lon": 77.5946},
         {"name": "agent2", "password": "courier123", "shift_start": time(8, 0), "shift_end": time(17, 0), "lat": 12.9750, "lon": 77.5900},
@@ -43,8 +46,12 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             agents_created += 1
         else:
             existing_agent = existing_agents[spec["name"]]
-            if existing_agent.current_location is None:
-                existing_agent.current_location = coords_to_geography(spec["lat"], spec["lon"])
+            existing_agent.current_location = coords_to_geography(spec["lat"], spec["lon"])
+            existing_agent.password_hash = hash_password(spec["password"])
+            existing_agent.status = "idle"
+            if reset:
+                agents_created += 1
+
 
     db.commit()
 

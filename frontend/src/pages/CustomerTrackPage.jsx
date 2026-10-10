@@ -13,6 +13,7 @@ export function CustomerTrackPage() {
   const { id } = useParams();
 
   const [request, setRequest] = useState(null);
+  const [routeGeometry, setRouteGeometry] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -26,6 +27,28 @@ export function CustomerTrackPage() {
       const data = await api.getRequest(id);
       setRequest(data);
       setError(null);
+
+      // Fetch followable road route from pickup to hub
+      if (data && data.latitude != null && data.longitude != null) {
+        try {
+          const coords = [
+            [data.latitude, data.longitude],
+            [HUB_COORDINATES.latitude, HUB_COORDINATES.longitude],
+          ];
+          const geom = await api.fetchRoute(coords);
+          if (Array.isArray(geom) && geom.length >= 2) {
+            setRouteGeometry(geom);
+          } else {
+            setRouteGeometry(coords);
+          }
+        } catch {
+          // Straight-line fallback on error / timeout
+          setRouteGeometry([
+            [data.latitude, data.longitude],
+            [HUB_COORDINATES.latitude, HUB_COORDINATES.longitude],
+          ]);
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.code === 'REQUEST_NOT_FOUND') {
         setError(`Pickup request "${id}" was not found.`);
@@ -36,6 +59,7 @@ export function CustomerTrackPage() {
       setIsLoading(false);
     }
   }, [id]);
+
 
   usePolling(fetchRequestDetails, 30000, Boolean(id));
 
@@ -204,22 +228,21 @@ export function CustomerTrackPage() {
                   <LeafletMap
                     center={[request.latitude || HUB_COORDINATES.latitude, request.longitude || HUB_COORDINATES.longitude]}
                     zoom={13}
-                    polylines={
-                      request.latitude && request.longitude
-                        ? [
-                            {
-                              positions: [
-                                [request.latitude, request.longitude],
-                                [HUB_COORDINATES.latitude, HUB_COORDINATES.longitude],
-                              ],
-                              color: '#16a34a', // Customer route: green polyline
-                              weight: 4,
-                              opacity: 0.8,
-                            },
-                          ]
-                        : []
+                    geometry={
+                      routeGeometry || (
+                        request.latitude && request.longitude
+                          ? [
+                              [request.latitude, request.longitude],
+                              [HUB_COORDINATES.latitude, HUB_COORDINATES.longitude],
+                            ]
+                          : null
+                      )
                     }
+                    routeColor="#16a34a"
+                    routeWeight={4}
+                    routeOpacity={0.8}
                     markers={[
+
                       {
                         id: 'pickup-coord',
                         lat: request.latitude,

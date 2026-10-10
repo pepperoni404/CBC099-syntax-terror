@@ -16,9 +16,11 @@ from app.schemas import (
 from app.auth import get_current_agent, check_agent_assigned
 from app.utils.validators import AppException
 from app.services.scheduler import get_agent_location, get_request_coords
-from app.services.osrm import get_travel_time_matrix
+from app.services.osrm import get_travel_time_matrix, get_route_geometry
+from app.config import settings
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
 
 
 @router.get("", response_model=List[AgentWithLocationResponse])
@@ -75,6 +77,7 @@ async def get_agent_schedule(
             schedule=[],
             total_travel_time_seconds=0,
             estimated_times=False,
+            geometry=[],
         )
 
     start_loc = get_agent_location(target_agent)
@@ -84,6 +87,17 @@ async def get_agent_schedule(
     matrix = matrix_res["matrix"]
     estimated_times = matrix_res["estimated"]
 
+    hub_loc = {"latitude": settings.HUB_LATITUDE, "longitude": settings.HUB_LONGITUDE}
+
+    # Full route waypoints: agent -> pickup1 -> hub -> pickup2 -> hub...
+    full_waypoints = [start_loc]
+    for s in stops:
+        full_waypoints.append(get_request_coords(s))
+        full_waypoints.append(hub_loc)
+
+    full_route_res = await get_route_geometry(full_waypoints)
+    full_geometry = full_route_res.get("geometry", [])
+
     schedule_items: List[ScheduleStop] = []
     total_travel_time_seconds = 0
 
@@ -91,6 +105,11 @@ async def get_agent_schedule(
         leg_time = int(round(matrix[i][i + 1]))
         total_travel_time_seconds += leg_time
         coords = get_request_coords(s)
+
+        # Leg geometry: from previous location (agent start or hub) to this pickup
+        prev_loc = start_loc if i == 0 else hub_loc
+        leg_res = await get_route_geometry([prev_loc, coords])
+        leg_geometry = leg_res.get("geometry", [])
 
         schedule_items.append(
             ScheduleStop(
@@ -103,6 +122,7 @@ async def get_agent_schedule(
                 window_end=format_iso_tz(s.window_end) or "",
                 status=s.status,
                 estimated_travel_time_seconds=leg_time,
+                geometry=leg_geometry,
             )
         )
 
@@ -111,4 +131,6 @@ async def get_agent_schedule(
         schedule=schedule_items,
         total_travel_time_seconds=total_travel_time_seconds,
         estimated_times=estimated_times,
+        geometry=full_geometry,
     )
+

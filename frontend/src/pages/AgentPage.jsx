@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Navbar from '../components/Navbar';
+
 import LeafletMap, { isValidCoord } from '../components/Map/LeafletMap';
 import AgentSchedule from '../components/AgentSchedule';
 import StatusButton from '../components/StatusButton';
@@ -21,9 +22,11 @@ export function AgentPage() {
 
   // Agent schedule state
   const [scheduleData, setScheduleData] = useState(null);
+  const [routeGeometry, setRouteGeometry] = useState(null);
   const [scheduleError, setScheduleError] = useState(null);
   const [selectedPickup, setSelectedPickup] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(null);
+
 
   // Fetch agent schedule: GET /agents/{id}/schedule
   const fetchSchedule = useCallback(async () => {
@@ -101,20 +104,64 @@ export function AgentPage() {
     ? agent.current_location.longitude
     : HUB_LOCATION.longitude;
 
-  // Build full route polyline:
+  // Build full route polyline waypoints:
   // Agent location → first pickup → hub → second pickup → hub → ...
+  // Handles null coordinates by defaulting to hub (12.9716, 77.5946)
   const routePositions = useMemo(() => {
     const points = [[agentLat, agentLng]];
     scheduleList.forEach((pickup) => {
-      const pLat = Number(pickup.latitude);
-      const pLng = Number(pickup.longitude);
-      if (isValidCoord(pLat) && isValidCoord(pLng)) {
-        points.push([pLat, pLng]);
-        points.push([HUB_LOCATION.latitude, HUB_LOCATION.longitude]);
-      }
+      const pLat = isValidCoord(Number(pickup.latitude))
+        ? Number(pickup.latitude)
+        : HUB_LOCATION.latitude;
+      const pLng = isValidCoord(Number(pickup.longitude))
+        ? Number(pickup.longitude)
+        : HUB_LOCATION.longitude;
+      points.push([pLat, pLng]);
+      points.push([HUB_LOCATION.latitude, HUB_LOCATION.longitude]);
     });
     return points;
   }, [agentLat, agentLng, scheduleList]);
+
+  // Fetch followable road route geometry from backend OSRM service
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadGeometry() {
+      // 1. Check if backend schedule already returned full geometry
+      if (Array.isArray(scheduleData?.geometry) && scheduleData.geometry.length >= 2) {
+        setRouteGeometry(scheduleData.geometry);
+        return;
+      }
+
+      // 2. Otherwise fetch road geometry via api.fetchRoute
+      if (scheduleList.length > 0 && routePositions.length > 1) {
+        try {
+          const geom = await api.fetchRoute(routePositions);
+          if (!isCancelled) {
+            if (Array.isArray(geom) && geom.length >= 2) {
+              setRouteGeometry(geom);
+            } else {
+              setRouteGeometry(routePositions);
+            }
+          }
+        } catch {
+          if (!isCancelled) {
+            // Straight-line fallback if OSRM is down or times out (3s)
+            setRouteGeometry(routePositions);
+          }
+        }
+      } else {
+        setRouteGeometry([]);
+      }
+    }
+
+    loadGeometry();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [scheduleData, scheduleList.length, routePositions]);
+
 
   // Map markers: Agent location, Hub, Pickups
   const mapMarkers = useMemo(() => {
@@ -410,21 +457,18 @@ export function AgentPage() {
                     <LeafletMap
                       center={mapCenter}
                       zoom={13}
-                      polylines={
-                        routePositions.length > 1
-                          ? [
-                              {
-                                positions: routePositions,
-                                color: '#2563eb', // Blue polyline per specification
-                                weight: 4,
-                                opacity: 0.8,
-                              },
-                            ]
-                          : []
+                      geometry={
+                        (routeGeometry && routeGeometry.length > 1)
+                          ? routeGeometry
+                          : (routePositions.length > 1 ? routePositions : null)
                       }
+                      routeColor="#2563eb" // Blue polyline (weight 4, opacity 0.8)
+                      routeWeight={4}
+                      routeOpacity={0.8}
                       markers={mapMarkers}
                     />
                   </div>
+
                 </div>
               </div>
             </div>

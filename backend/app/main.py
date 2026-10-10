@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import settings
 from app.utils.validators import AppException
-from app.routers import auth, requests, agents, schedule, demo
+from app.routers import auth, requests, agents, schedule, demo, route
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -114,6 +114,8 @@ app.include_router(requests.router)
 app.include_router(agents.router)
 app.include_router(schedule.router)
 app.include_router(demo.router)
+app.include_router(route.router)
+
 
 
 @app.get("/health", tags=["system"])

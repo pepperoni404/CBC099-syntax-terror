@@ -162,6 +162,7 @@ class ScheduleStop(BaseModel):
     window_end: str
     status: str
     estimated_travel_time_seconds: int
+    geometry: Optional[List[List[float]]] = None
 
 
 class AgentScheduleResponse(BaseModel):
@@ -169,6 +170,15 @@ class AgentScheduleResponse(BaseModel):
     schedule: List[ScheduleStop]
     total_travel_time_seconds: int
     estimated_times: bool
+    geometry: Optional[List[List[float]]] = None
+
+
+class RouteResponse(BaseModel):
+    geometry: List[List[float]]
+    distance: float = 0.0
+    duration: float = 0.0
+    estimated: bool = False
+
 
 
 # Scheduler Schemas
