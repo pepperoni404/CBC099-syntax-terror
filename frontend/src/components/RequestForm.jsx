@@ -24,7 +24,6 @@ export function RequestForm() {
 
   const [formData, setFormData] = useState({
     customer_name: '',
-    phone: '',
     address: '',
     latitude: 12.9716,
     longitude: 77.5946,
@@ -42,7 +41,6 @@ export function RequestForm() {
   const validate = () => {
     const errs = {};
     if (!formData.customer_name.trim()) errs.customer_name = 'Customer name is required';
-    if (!formData.phone.trim()) errs.phone = 'Phone number is required';
     if (!formData.address.trim()) errs.address = 'Address is required';
 
     if (formData.latitude == null || formData.longitude == null) {
@@ -93,7 +91,6 @@ export function RequestForm() {
     try {
       const payload = {
         customer_name: formData.customer_name.trim(),
-        phone: formData.phone.trim(),
         address: formData.address.trim(),
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
@@ -200,42 +197,22 @@ export function RequestForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Customer Name
-            </label>
-            <input
-              type="text"
-              name="customer_name"
-              value={formData.customer_name}
-              onChange={handleChange}
-              placeholder="e.g. Alice Smith"
-              maxLength={100}
-              className={`w-full bg-white border ${
-                errors.customer_name ? 'border-red-500' : 'border-gray-300'
-              } rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-            />
-            {errors.customer_name && <p className="text-red-600 text-xs mt-1">{errors.customer_name}</p>}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="e.g. +91 98765 43210"
-              maxLength={20}
-              className={`w-full bg-white border ${
-                errors.phone ? 'border-red-500' : 'border-gray-300'
-              } rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-            />
-            {errors.phone && <p className="text-red-600 text-xs mt-1">{errors.phone}</p>}
-          </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Customer Name
+          </label>
+          <input
+            type="text"
+            name="customer_name"
+            value={formData.customer_name}
+            onChange={handleChange}
+            placeholder="e.g. Aarav Sharma"
+            maxLength={100}
+            className={`w-full bg-white border ${
+              errors.customer_name ? 'border-red-500' : 'border-gray-300'
+            } rounded-md px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
+          />
+          {errors.customer_name && <p className="text-red-600 text-xs mt-1">{errors.customer_name}</p>}
         </div>
 
         <div>

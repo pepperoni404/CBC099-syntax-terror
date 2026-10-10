@@ -24,12 +24,36 @@ def test_create_request_success(client, demo_agents):
     assert response.status_code == 201
     data = response.json()
     assert data["customer_name"] == "Test Customer"
-    assert data["status"] == "Pending"
-    assert data["assigned_agent_id"] is None
-    assert data["scheduled_time"] is None
+    assert data["status"] in ["Scheduled", "Pending"]
+    if data["status"] == "Scheduled":
+        assert data["assigned_agent_id"] is not None
+        assert data["scheduled_time"] is not None
     assert data["priority"] == "normal"
     assert data["latitude"] == 12.9716
     assert data["longitude"] == 77.5946
+
+
+def test_create_request_without_phone(client, demo_agents):
+    now = datetime.now(timezone.utc)
+    tomorrow = now.date() + timedelta(days=1)
+    w_start = datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=10)
+    w_end = datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=12)
+
+    payload = {
+        "customer_name": "No Phone Customer",
+        "address": "456 No Phone Rd",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "window_start": w_start.isoformat(),
+        "window_end": w_end.isoformat(),
+        "priority": "normal",
+    }
+    response = client.post("/requests", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["customer_name"] == "No Phone Customer"
+    assert data["phone"] is None
+    assert data["status"] in ["Scheduled", "Pending"]
 
 
 def test_create_request_invalid_window(client, demo_agents):

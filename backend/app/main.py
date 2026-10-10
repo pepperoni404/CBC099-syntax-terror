@@ -118,6 +118,16 @@ app.include_router(route.router)
 
 
 
+@app.get("/", tags=["system"])
+def root():
+    return {
+        "status": "ok",
+        "message": "Smart Courier Pickup Scheduling System API",
+        "docs": "/docs",
+        "version": "1.0.0",
+    }
+
+
 @app.get("/health", tags=["system"])
 def health_check():
     return {"status": "ok"}

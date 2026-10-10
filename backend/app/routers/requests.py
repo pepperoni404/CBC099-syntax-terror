@@ -26,12 +26,13 @@ from app.utils.validators import (
     validate_agent_shift_overlap,
     validate_status_transition,
 )
+from app.services.scheduler import run_scheduler, insert_urgent_request
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
 
 @router.post("", response_model=PickupRequestCreateResponse, status_code=status.HTTP_201_CREATED)
-def create_pickup_request(payload: CreatePickupRequest, db: Session = Depends(get_db)):
+async def create_pickup_request(payload: CreatePickupRequest, db: Session = Depends(get_db)):
     # 1. Validation
     validate_coordinates(payload.latitude, payload.longitude)
     validate_priority(payload.priority)
@@ -68,6 +69,13 @@ def create_pickup_request(payload: CreatePickupRequest, db: Session = Depends(ge
     )
     db.add(history)
     db.commit()
+
+    # Automatically trigger scheduler to assign to agent
+    if new_request.priority.lower() == "urgent":
+        await insert_urgent_request(new_request, db)
+    else:
+        await run_scheduler(db)
+
     db.refresh(new_request)
 
     return PickupRequestCreateResponse(

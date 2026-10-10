@@ -51,7 +51,7 @@ class PickupRequest(Base):
         default=uuid.uuid4,
     )
     customer_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     location = mapped_column(Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

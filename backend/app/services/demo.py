@@ -64,7 +64,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
 
     demo_requests_spec = [
         {
-            "customer_name": "Alice Smith",
+            "customer_name": "Aarav Sharma",
             "phone": "+919876543210",
             "address": "100 MG Road, Bangalore",
             "lat": 12.9750,
@@ -76,7 +76,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             "priority": "normal",
         },
         {
-            "customer_name": "Bob Johnson",
+            "customer_name": "Priya Patel",
             "phone": "+919876543211",
             "address": "45 Brigade Road, Bangalore",
             "lat": 12.9690,
@@ -88,7 +88,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             "priority": "urgent",
         },
         {
-            "customer_name": "Charlie Brown",
+            "customer_name": "Rahul Verma",
             "phone": "+919876543212",
             "address": "12 Commercial Street, Bangalore",
             "lat": 12.9800,
@@ -100,7 +100,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             "priority": "low",
         },
         {
-            "customer_name": "Diana Prince",
+            "customer_name": "Sneha Rao",
             "phone": "+919876543213",
             "address": "88 Residency Road, Bangalore",
             "lat": 12.9650,
@@ -112,7 +112,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             "priority": "normal",
         },
         {
-            "customer_name": "Evan Wright",
+            "customer_name": "Vikram Malhotra",
             "phone": "+919876543214",
             "address": "22 Cunningham Road, Bangalore",
             "lat": 12.9720,
@@ -124,7 +124,7 @@ def seed_demo_data(db: Session, reset: bool = False) -> Tuple[int, int]:
             "priority": "urgent",
         },
         {
-            "customer_name": "Fiona Gallagher",
+            "customer_name": "Ananya Iyer",
             "phone": "+919876543215",
             "address": "60 Lavelle Road, Bangalore",
             "lat": 12.9780,
@@ -180,7 +180,7 @@ async def create_urgent_demo_request(db: Session) -> Dict[str, Any]:
     w_end = now + timedelta(hours=2)
 
     urgent_req = PickupRequest(
-        customer_name="Urgent Customer",
+        customer_name="Arjun Kumar",
         phone="+919999999999",
         address="10 Vittal Mallya Road, Bangalore",
         location=coords_to_geography(12.9730, 77.5960),

@@ -107,7 +107,6 @@ export const api = {
     // Ensures coordinates are strictly { latitude, longitude }
     const payload = {
       customer_name: requestData.customer_name,
-      phone: requestData.phone,
       address: requestData.address,
       latitude: Number(requestData.latitude),
       longitude: Number(requestData.longitude),
@@ -115,6 +114,9 @@ export const api = {
       window_end: requestData.window_end,
       priority: requestData.priority || 'normal',
     };
+    if (requestData.phone) {
+      payload.phone = requestData.phone;
+    }
     return apiFetch('/requests', {
       method: 'POST',
       body: JSON.stringify(payload),

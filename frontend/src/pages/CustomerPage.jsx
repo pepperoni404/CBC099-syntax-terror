@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import RequestForm from '../components/RequestForm';
-import DemoButton from '../components/DemoButton';
 
 export function CustomerPage() {
   const [trackId, setTrackId] = useState('');
@@ -35,9 +34,6 @@ export function CustomerPage() {
 
         {/* Request Form */}
         <RequestForm />
-
-        {/* Demo Button */}
-        <DemoButton />
 
         {/* Tracking Lookup Section */}
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">

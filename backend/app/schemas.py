@@ -66,7 +66,7 @@ class LoginResponse(BaseModel):
 # Request Schemas
 class CreatePickupRequest(BaseModel):
     customer_name: str = Field(..., max_length=100)
-    phone: str = Field(..., max_length=20)
+    phone: Optional[str] = Field(None, max_length=20)
     address: str = Field(..., max_length=255)
     latitude: float
     longitude: float
@@ -83,7 +83,7 @@ class StatusHistoryItem(BaseModel):
 class PickupRequestCreateResponse(BaseModel):
     id: uuid.UUID
     customer_name: str
-    phone: str
+    phone: Optional[str] = None
     address: str
     latitude: float
     longitude: float
@@ -115,7 +115,7 @@ class PickupRequestListSummary(BaseModel):
 class PickupRequestDetailResponse(BaseModel):
     id: uuid.UUID
     customer_name: str
-    phone: str
+    phone: Optional[str] = None
     address: str
     latitude: float
     longitude: float
