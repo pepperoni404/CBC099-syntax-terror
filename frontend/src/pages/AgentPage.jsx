@@ -53,8 +53,8 @@ export function AgentPage() {
     }
   }, [isAuthenticated, agent?.id, logout, selectedPickup]);
 
-  // Polling every 30 seconds (30000ms) when authenticated per specification
-  usePolling(fetchSchedule, 30000, isAuthenticated && Boolean(agent?.id));
+  // Polling every 5 seconds (5000ms) when authenticated
+  usePolling(fetchSchedule, 5000, isAuthenticated && Boolean(agent?.id));
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();

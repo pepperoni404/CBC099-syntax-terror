@@ -121,6 +121,7 @@ async def get_agent_schedule(
                 scheduled_time=format_iso_tz(s.scheduled_time) or "",
                 window_end=format_iso_tz(s.window_end) or "",
                 status=s.status,
+                priority=s.priority or "normal",
                 estimated_travel_time_seconds=leg_time,
                 geometry=leg_geometry,
             )

@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Custom polling hook per Section 3.3 of frontend-spec.md
- * Default polling interval is exactly 30 seconds (30000ms).
+ * Custom polling hook
+ * Default polling interval is exactly 5 seconds (5000ms).
  */
-export function usePolling(callback, interval = 30000, enabled = true) {
+export function usePolling(callback, interval = 5000, enabled = true) {
   const savedCallback = useRef(callback);
 
   useEffect(() => {

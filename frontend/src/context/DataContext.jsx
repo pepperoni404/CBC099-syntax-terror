@@ -1,5 +1,6 @@
 import React, { createContext, useReducer, useCallback } from 'react';
 import { api } from '../api/client';
+import { usePolling } from '../hooks/usePolling';
 
 export const DataContext = createContext(null);
 
@@ -16,6 +17,11 @@ const initialState = {
 
 function dataReducer(state, action) {
   switch (action.type) {
+    case 'SET_POLLING':
+      return {
+        ...state,
+        isPolling: action.payload,
+      };
     case 'SET_REQUESTS': {
       const requests = Array.isArray(action.payload) ? action.payload : [];
       const unassigned = requests.filter(
@@ -157,6 +163,17 @@ export function DataProvider({ children }) {
     dispatch({ type: 'CLEAR_ERROR' });
   };
 
+  // Live polling for dispatcher every 5 seconds (5000ms) when enabled
+  usePolling(refreshDispatcherData, 5000, state.isPolling);
+
+  const togglePolling = () => {
+    dispatch({ type: 'SET_POLLING', payload: !state.isPolling });
+  };
+
+  const setPolling = (enabled) => {
+    dispatch({ type: 'SET_POLLING', payload: Boolean(enabled) });
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -170,6 +187,8 @@ export function DataProvider({ children }) {
         updateRequestStatusAction,
         setOsrmStatus,
         clearError,
+        togglePolling,
+        setPolling,
       }}
     >
       {children}

@@ -1,7 +1,46 @@
+import re
 import uuid
-from datetime import datetime, time
-from typing import Optional, List, Any
-from pydantic import BaseModel, Field, field_serializer
+from datetime import datetime, time, timedelta, timezone
+from typing import Optional, List, Any, Union
+from pydantic import BaseModel, Field, field_serializer, model_validator
+
+
+def _parse_time_str(val: str, default_date: datetime.date) -> datetime:
+    val = val.strip()
+    # Pure hour integer like "10" or "9"
+    if re.match(r"^\d{1,2}$", val):
+        hour = int(val)
+        if 0 <= hour <= 24:
+            if hour == 24:
+                return datetime.combine(default_date + timedelta(days=1), time(0, 0), tzinfo=timezone.utc)
+            return datetime.combine(default_date, time(hour, 0), tzinfo=timezone.utc)
+
+    # Time-only format like "10:00" or "14:30"
+    m_time = re.match(r"^(\d{1,2}):(\d{2})(?::(\d{2}))?$", val)
+    if m_time:
+        hour = int(m_time.group(1))
+        minute = int(m_time.group(2))
+        second = int(m_time.group(3)) if m_time.group(3) else 0
+        return datetime.combine(default_date, time(hour, minute, second), tzinfo=timezone.utc)
+
+    # Date with hour only, e.g. "2026-10-11T10"
+    m_date_hour = re.match(r"^(\d{4}-\d{2}-\d{2})[T ](\d{1,2})$", val)
+    if m_date_hour:
+        d_str = m_date_hour.group(1)
+        hour = int(m_date_hour.group(2))
+        return datetime.fromisoformat(f"{d_str}T{hour:02d}:00:00").replace(tzinfo=timezone.utc)
+
+    # Standard ISO string
+    clean_val = val.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(clean_val)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        pass
+
+    raise ValueError(f"Cannot parse window datetime from '{val}'")
 
 
 def format_iso_tz(dt: Optional[datetime]) -> Optional[str]:
@@ -70,9 +109,59 @@ class CreatePickupRequest(BaseModel):
     address: str = Field(..., max_length=255)
     latitude: float
     longitude: float
-    window_start: datetime
-    window_end: datetime
+    window_start: Union[datetime, str]
+    window_end: Union[datetime, str]
     priority: str = "normal"
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_and_validate_windows(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ws_val = data.get("window_start")
+            we_val = data.get("window_end")
+
+            now = datetime.now(timezone.utc)
+            base_date = now.date()
+
+            # If start is time-only and the hour is already past today, roll to tomorrow
+            if isinstance(ws_val, str) and (re.match(r"^\d{1,2}$", ws_val.strip()) or re.match(r"^\d{1,2}:\d{2}", ws_val.strip())):
+                try:
+                    parts = ws_val.strip().split(":")
+                    hour = int(parts[0])
+                    if hour <= now.hour:
+                        base_date = base_date + timedelta(days=1)
+                except Exception:
+                    pass
+
+            if ws_val is not None:
+                if isinstance(ws_val, datetime):
+                    ws_dt = ws_val if ws_val.tzinfo else ws_val.replace(tzinfo=timezone.utc)
+                else:
+                    ws_dt = _parse_time_str(str(ws_val), base_date)
+                data["window_start"] = ws_dt
+
+            if we_val is not None:
+                end_base_date = (
+                    data["window_start"].date()
+                    if "window_start" in data and isinstance(data["window_start"], datetime)
+                    else base_date
+                )
+                if isinstance(we_val, datetime):
+                    we_dt = we_val if we_val.tzinfo else we_val.replace(tzinfo=timezone.utc)
+                else:
+                    we_dt = _parse_time_str(str(we_val), end_base_date)
+                    if (
+                        isinstance(ws_val, str)
+                        and not re.search(r"\d{4}-\d{2}-\d{2}", str(we_val))
+                        and we_dt <= data.get("window_start", we_dt)
+                    ):
+                        we_dt = we_dt + timedelta(days=1)
+                data["window_end"] = we_dt
+
+        return data
+
+
+RequestCreate = CreatePickupRequest
 
 
 class StatusHistoryItem(BaseModel):
@@ -161,6 +250,7 @@ class ScheduleStop(BaseModel):
     scheduled_time: str
     window_end: str
     status: str
+    priority: str = "normal"
     estimated_travel_time_seconds: int
     geometry: Optional[List[List[float]]] = None
 
@@ -190,6 +280,7 @@ class SuggestedSlot(BaseModel):
 class ScheduleDetailItem(BaseModel):
     request_id: uuid.UUID
     action: str
+    priority: Optional[str] = "normal"
     assigned_agent_id: Optional[uuid.UUID] = None
     scheduled_time: Optional[str] = None
     reason: Optional[str] = None

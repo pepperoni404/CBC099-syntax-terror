@@ -20,7 +20,7 @@ export function CustomerTrackPage() {
   const [cancelMessage, setCancelMessage] = useState(null);
   const [cancelError, setCancelError] = useState(null);
 
-  // Poll GET /requests/{id} every 30 seconds (30000ms)
+  // Poll GET /requests/{id} every 5 seconds (5000ms)
   const fetchRequestDetails = useCallback(async () => {
     if (!id) return;
     try {
@@ -61,7 +61,7 @@ export function CustomerTrackPage() {
   }, [id]);
 
 
-  usePolling(fetchRequestDetails, 30000, Boolean(id));
+  usePolling(fetchRequestDetails, 5000, Boolean(id));
 
   const handleCancel = async () => {
     if (!window.confirm('Are you sure you want to cancel this pickup request?')) {

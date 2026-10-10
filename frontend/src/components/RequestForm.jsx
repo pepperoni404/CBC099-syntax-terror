@@ -3,19 +3,33 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import LeafletMap from './Map/LeafletMap';
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0') + ':00');
+
+const getTodayDateString = () => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
 const DEFAULT_WINDOWS = () => {
   const now = new Date();
-  const start = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-  const end = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+  let baseDate = new Date();
+  let startHour = now.getHours() + 1;
+  if (startHour >= 22) {
+    baseDate.setDate(baseDate.getDate() + 1);
+    startHour = 9;
+  }
+  const endHour = Math.min(startHour + 2, 23);
 
-  const format = (d) => {
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateStr = `${baseDate.getFullYear()}-${pad(baseDate.getMonth() + 1)}-${pad(baseDate.getDate())}`;
+  const startStr = `${pad(startHour)}:00`;
+  const endStr = `${pad(endHour)}:00`;
 
   return {
-    window_start: format(start),
-    window_end: format(end),
+    date: dateStr,
+    window_start: startStr,
+    window_end: endStr,
   };
 };
 
@@ -27,6 +41,7 @@ export function RequestForm() {
     address: '',
     latitude: 12.9716,
     longitude: 77.5946,
+    date: defaults.date,
     window_start: defaults.window_start,
     window_end: defaults.window_end,
     priority: 'normal',
@@ -37,6 +52,10 @@ export function RequestForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRequest, setSubmittedRequest] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  const startHourNum = parseInt(formData.window_start.split(':')[0], 10);
+  const endHourNum = parseInt(formData.window_end.split(':')[0], 10);
+  const windowDuration = endHourNum - startHourNum;
 
   const validate = () => {
     const errs = {};
@@ -50,16 +69,37 @@ export function RequestForm() {
       if (formData.longitude < -180 || formData.longitude > 180) errs.coordinates = 'Longitude must be between -180 and 180';
     }
 
+    if (!formData.date) {
+      errs.date = 'Pickup date is required';
+    }
+
     if (!formData.window_start) {
-      errs.window_start = 'Window start is required';
-    } else if (new Date(formData.window_start) <= new Date()) {
-      errs.window_start = 'window_start must be in the future';
+      errs.window_start = 'Window start hour is required';
     }
 
     if (!formData.window_end) {
-      errs.window_end = 'Window end is required';
-    } else if (formData.window_start && new Date(formData.window_end) <= new Date(formData.window_start)) {
-      errs.window_end = 'window_end must be after window_start';
+      errs.window_end = 'Window end hour is required';
+    }
+
+    if (formData.window_start && formData.window_end) {
+      const startH = parseInt(formData.window_start.split(':')[0], 10);
+      const endH = parseInt(formData.window_end.split(':')[0], 10);
+      const duration = endH - startH;
+
+      if (endH <= startH) {
+        errs.window_end = 'window_end must be after window_start';
+      } else if (duration < 1) {
+        errs.window_end = 'Window must be at least 1 hour';
+      } else if (duration > 8) {
+        errs.window_end = 'Window cannot exceed 8 hours';
+      }
+    }
+
+    if (formData.date && formData.window_start) {
+      const fullStart = new Date(`${formData.date}T${formData.window_start}:00`);
+      if (fullStart <= new Date()) {
+        errs.window_start = 'window_start must be in the future';
+      }
     }
 
     setErrors(errs);
@@ -89,13 +129,16 @@ export function RequestForm() {
 
     setIsSubmitting(true);
     try {
+      const startDate = new Date(`${formData.date}T${formData.window_start}:00`);
+      const endDate = new Date(`${formData.date}T${formData.window_end}:00`);
+
       const payload = {
         customer_name: formData.customer_name.trim(),
         address: formData.address.trim(),
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        window_start: new Date(formData.window_start).toISOString(),
-        window_end: new Date(formData.window_end).toISOString(),
+        window_start: startDate.toISOString(),
+        window_end: endDate.toISOString(),
         priority: formData.priority,
       };
 
@@ -123,10 +166,10 @@ export function RequestForm() {
     const fresh = DEFAULT_WINDOWS();
     setFormData({
       customer_name: '',
-      phone: '',
       address: '',
       latitude: 12.9716,
       longitude: 77.5946,
+      date: fresh.date,
       window_start: fresh.window_start,
       window_end: fresh.window_end,
       priority: 'normal',
@@ -233,20 +276,42 @@ export function RequestForm() {
           {errors.address && <p className="text-red-600 text-xs mt-1">{errors.address}</p>}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Pickup Date
+            </label>
+            <input
+              type="date"
+              name="date"
+              value={formData.date}
+              min={getTodayDateString()}
+              onChange={handleChange}
+              className={`w-full bg-white border ${
+                errors.date ? 'border-red-500' : 'border-gray-300'
+              } rounded-md px-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
+            />
+            {errors.date && <p className="text-red-600 text-xs mt-1">{errors.date}</p>}
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Window Start
             </label>
-            <input
-              type="datetime-local"
+            <select
               name="window_start"
               value={formData.window_start}
               onChange={handleChange}
               className={`w-full bg-white border ${
                 errors.window_start ? 'border-red-500' : 'border-gray-300'
               } rounded-md px-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-            />
+            >
+              {HOURS.map((h) => (
+                <option key={`start-${h}`} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
             {errors.window_start && <p className="text-red-600 text-xs mt-1">{errors.window_start}</p>}
           </div>
 
@@ -254,15 +319,20 @@ export function RequestForm() {
             <label className="block text-xs font-medium text-gray-700 mb-1">
               Window End
             </label>
-            <input
-              type="datetime-local"
+            <select
               name="window_end"
               value={formData.window_end}
               onChange={handleChange}
               className={`w-full bg-white border ${
                 errors.window_end ? 'border-red-500' : 'border-gray-300'
               } rounded-md px-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500`}
-            />
+            >
+              {HOURS.map((h) => (
+                <option key={`end-${h}`} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
             {errors.window_end && <p className="text-red-600 text-xs mt-1">{errors.window_end}</p>}
           </div>
 
@@ -281,6 +351,15 @@ export function RequestForm() {
               <option value="low">Low</option>
             </select>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-gray-500 px-1 -mt-2">
+          <span>Window selection: 1 hour minimum, 8 hours maximum</span>
+          {windowDuration >= 1 && windowDuration <= 8 && (
+            <span className="font-semibold text-blue-600">
+              Duration: {windowDuration} {windowDuration === 1 ? 'hour' : 'hours'}
+            </span>
+          )}
         </div>
 
         {/* Map Pin Picker */}

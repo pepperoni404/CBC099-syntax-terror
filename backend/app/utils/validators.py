@@ -55,6 +55,23 @@ def validate_window(window_start: datetime, window_end: datetime):
             field="window_end",
         )
 
+    duration = we - ws
+    if duration < timedelta(minutes=59):
+        raise AppException(
+            status_code=400,
+            code="INVALID_WINDOW",
+            message="Window duration must be at least 1 hour",
+            field="window_end",
+        )
+
+    if duration > timedelta(hours=8, minutes=1):
+        raise AppException(
+            status_code=400,
+            code="INVALID_WINDOW",
+            message="Window duration cannot exceed 8 hours",
+            field="window_end",
+        )
+
     if ws < now:
         raise AppException(
             status_code=400,

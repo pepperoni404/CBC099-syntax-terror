@@ -266,6 +266,7 @@ async def schedule_single_request(
         return {
             "request_id": req.id,
             "action": "scheduled",
+            "priority": req.priority,
             "assigned_agent_id": agent.id,
             "scheduled_time": format_iso_tz(chosen["scheduled_time"]),
         }
@@ -288,6 +289,7 @@ async def schedule_single_request(
         detail: Dict[str, Any] = {
             "request_id": req.id,
             "action": "unassigned",
+            "priority": req.priority,
             "reason": req.unassigned_reason,
         }
         if suggested:
