@@ -27,6 +27,7 @@ async def run_schedule_engine(
             ScheduleDetailItem(
                 request_id=d["request_id"],
                 action=d["action"],
+                priority=d.get("priority"),
                 assigned_agent_id=d.get("assigned_agent_id"),
                 scheduled_time=d.get("scheduled_time"),
                 reason=d.get("reason"),

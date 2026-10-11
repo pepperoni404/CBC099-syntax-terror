@@ -8,21 +8,22 @@ const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0') + 
 const getTodayDateString = () => {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  return `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
 };
 
 const DEFAULT_WINDOWS = () => {
   const now = new Date();
   let baseDate = new Date();
-  let startHour = now.getHours() + 1;
-  if (startHour >= 22) {
-    baseDate.setDate(baseDate.getDate() + 1);
-    startHour = 9;
+  let utcHour = now.getUTCHours();
+  let startHour = Math.max(10, utcHour + 1);
+  if (startHour >= 16) {
+    baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+    startHour = 10;
   }
-  const endHour = Math.min(startHour + 2, 23);
+  const endHour = Math.min(startHour + 2, 17);
 
   const pad = (n) => String(n).padStart(2, '0');
-  const dateStr = `${baseDate.getFullYear()}-${pad(baseDate.getMonth() + 1)}-${pad(baseDate.getDate())}`;
+  const dateStr = `${baseDate.getUTCFullYear()}-${pad(baseDate.getUTCMonth() + 1)}-${pad(baseDate.getUTCDate())}`;
   const startStr = `${pad(startHour)}:00`;
   const endStr = `${pad(endHour)}:00`;
 
@@ -96,7 +97,7 @@ export function RequestForm() {
     }
 
     if (formData.date && formData.window_start) {
-      const fullStart = new Date(`${formData.date}T${formData.window_start}:00`);
+      const fullStart = new Date(`${formData.date}T${formData.window_start}:00Z`);
       if (fullStart <= new Date()) {
         errs.window_start = 'window_start must be in the future';
       }
@@ -129,16 +130,13 @@ export function RequestForm() {
 
     setIsSubmitting(true);
     try {
-      const startDate = new Date(`${formData.date}T${formData.window_start}:00`);
-      const endDate = new Date(`${formData.date}T${formData.window_end}:00`);
-
       const payload = {
         customer_name: formData.customer_name.trim(),
         address: formData.address.trim(),
         latitude: Number(formData.latitude),
         longitude: Number(formData.longitude),
-        window_start: startDate.toISOString(),
-        window_end: endDate.toISOString(),
+        window_start: `${formData.date}T${formData.window_start}:00Z`,
+        window_end: `${formData.date}T${formData.window_end}:00Z`,
         priority: formData.priority,
       };
 

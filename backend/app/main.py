@@ -19,6 +19,10 @@ app = FastAPI(
 
 # CORS Configuration
 origins = [origin.strip() for origin in settings.ALLOWED_ORIGINS.split(",") if origin.strip()]
+for default_origin in ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173", "http://127.0.0.1:5173"]:
+    if default_origin not in origins:
+        origins.append(default_origin)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins if origins else ["*"],
@@ -28,16 +32,27 @@ app.add_middleware(
 )
 
 
+def _with_cors(response: JSONResponse, request: Request) -> JSONResponse:
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
 # Exception Handlers matching integration-guide Section 2.3 & 2.4
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
+    logger.warning("AppException: code=%s, field=%s, msg=%s", exc.code, exc.field, exc.message)
     error_payload = {
         "code": exc.code,
         "message": exc.message,
     }
     if exc.field is not None:
         error_payload["field"] = exc.field
-    return JSONResponse(status_code=exc.status_code, content={"error": error_payload})
+    return _with_cors(JSONResponse(status_code=exc.status_code, content={"error": error_payload}), request)
 
 
 @app.exception_handler(RequestValidationError)
@@ -65,13 +80,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     if field_name:
         error_payload["field"] = field_name
 
-    return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"error": error_payload})
+    logger.warning("RequestValidationError: %s", error_payload)
+    return _with_cors(JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"error": error_payload}), request)
 
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if isinstance(exc.detail, dict) and "error" in exc.detail:
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+        return _with_cors(JSONResponse(status_code=exc.status_code, content=exc.detail), request)
 
     code = "INTERNAL_ERROR"
     message = str(exc.detail)
@@ -88,23 +104,29 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     elif exc.status_code == 409:
         code = "INVALID_TRANSITION"
 
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": {"code": code, "message": message}},
+    return _with_cors(
+        JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": code, "message": message}},
+        ),
+        request,
     )
 
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled server exception: %s", exc)
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "Internal server error",
-            }
-        },
+    return _with_cors(
+        JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": "Internal server error",
+                }
+            },
+        ),
+        request,
     )
 
 

@@ -44,10 +44,18 @@ def get_effective_priority_tier(req: PickupRequest, now: datetime) -> int:
     we = req.window_end if req.window_end.tzinfo else req.window_end.replace(tzinfo=timezone.utc)
     time_until_deadline = we - now
 
-    if time_until_deadline < timedelta(hours=2):
+    if raw_tier == 0:
         return 0
-    elif time_until_deadline < timedelta(hours=24) and raw_tier > 1:
+    elif raw_tier == 1:
+        if time_until_deadline < timedelta(hours=2):
+            return 0
         return 1
+    elif raw_tier == 2:
+        if time_until_deadline < timedelta(hours=2):
+            return 0
+        elif time_until_deadline < timedelta(hours=24):
+            return 1
+        return 2
     return raw_tier
 
 
@@ -166,6 +174,7 @@ async def evaluate_agent_insertion(
     base_travel_time = base_calc[2] if base_calc else 0
 
     best_result = None
+    new_tier = {"urgent": 0, "normal": 1, "low": 2}.get(new_req.priority.lower(), 1)
 
     for pos in range(len(existing_stops) + 1):
         candidate_stops = existing_stops[:pos] + [new_req] + existing_stops[pos:]
@@ -173,10 +182,27 @@ async def evaluate_agent_insertion(
         if calc is not None:
             scheduled_times, leg_durations, total_travel_time, estimated = calc
             extra_time = total_travel_time - base_travel_time
-            if best_result is None or extra_time < best_result["extra_time"]:
+
+            # Priority ordering in candidate route:
+            # Count priority inversions (lower priority served before higher priority)
+            inversions = 0
+            for i in range(len(candidate_stops)):
+                t_i = {"urgent": 0, "normal": 1, "low": 2}.get(candidate_stops[i].priority.lower(), 1)
+                for j in range(i + 1, len(candidate_stops)):
+                    t_j = {"urgent": 0, "normal": 1, "low": 2}.get(candidate_stops[j].priority.lower(), 1)
+                    if t_i > t_j:
+                        inversions += 1
+
+            # High priority (urgent) requests should be inserted earlier in the route if possible
+            pos_bias = pos if new_tier == 0 else 0
+            score = (inversions, pos_bias, extra_time)
+
+            if best_result is None or score < best_result["score"]:
                 best_result = {
                     "agent": agent,
                     "position": pos,
+                    "score": score,
+                    "inversions": inversions,
                     "extra_time": extra_time,
                     "scheduled_time": scheduled_times[pos],
                     "all_scheduled_times": scheduled_times,
@@ -226,16 +252,16 @@ async def schedule_single_request(
                 break
 
         if is_near:
-            if best_near_route_candidate is None or eval_result["extra_time"] < best_near_route_candidate["extra_time"]:
+            if best_near_route_candidate is None or eval_result["score"] < best_near_route_candidate["score"]:
                 best_near_route_candidate = eval_result
 
-        if best_overall_candidate is None or eval_result["extra_time"] < best_overall_candidate["extra_time"]:
+        if best_overall_candidate is None or eval_result["score"] < best_overall_candidate["score"]:
             best_overall_candidate = eval_result
 
     # Prefer near-route if cheaper or competitive
     chosen = None
     if best_near_route_candidate is not None:
-        if best_overall_candidate is None or best_near_route_candidate["extra_time"] <= best_overall_candidate["extra_time"]:
+        if best_overall_candidate is None or best_near_route_candidate["score"] <= best_overall_candidate["score"]:
             chosen = best_near_route_candidate
         else:
             chosen = best_overall_candidate
@@ -330,21 +356,31 @@ async def run_scheduler(db: Session) -> Dict[str, Any]:
     if not pending_requests:
         return {"scheduled": 0, "unassigned": 0, "details": []}
 
-    # Build priority queue
-    # heapq tuple: (effective_tier, window_end, created_at, id, request)
-    pq = []
-    for req in pending_requests:
-        tier = get_effective_priority_tier(req, now)
-        we = req.window_end if req.window_end.tzinfo else req.window_end.replace(tzinfo=timezone.utc)
-        ca = req.created_at if req.created_at.tzinfo else req.created_at.replace(tzinfo=timezone.utc)
-        heapq.heappush(pq, (tier, we, ca, req.id, req))
-
     details = []
     scheduled_count = 0
     unassigned_count = 0
 
-    while pq:
-        _, _, _, _, req = heapq.heappop(pq)
+    remaining = list(pending_requests)
+
+    while remaining:
+        now = datetime.now(timezone.utc)
+
+        # Sort remaining requests by:
+        # 1. Effective priority tier (0=urgent, 1=normal, 2=low)
+        # 2. Raw priority tier (0=urgent, 1=normal, 2=low)
+        # 3. Window deadline (earlier first)
+        # 4. Created at (earlier first)
+        # 5. ID (stable tiebreaker)
+        def get_priority_key(r: PickupRequest):
+            eff_tier = get_effective_priority_tier(r, now)
+            raw_tier = {"urgent": 0, "normal": 1, "low": 2}.get(r.priority.lower(), 1)
+            we = r.window_end if r.window_end.tzinfo else r.window_end.replace(tzinfo=timezone.utc)
+            ca = r.created_at if r.created_at.tzinfo else r.created_at.replace(tzinfo=timezone.utc)
+            return (eff_tier, raw_tier, we, ca, str(r.id))
+
+        remaining.sort(key=get_priority_key)
+        req = remaining.pop(0)
+
         result = await schedule_single_request(req, agents, agent_routes, now, db)
         details.append(result)
         if result["action"] == "scheduled":
@@ -362,12 +398,14 @@ async def run_scheduler(db: Session) -> Dict[str, Any]:
 
 
 async def insert_urgent_request(
-    db: Session, urgent_req: PickupRequest
+    db: Any, urgent_req: Any = None
 ) -> Tuple[PickupRequest, List[uuid.UUID], List[uuid.UUID]]:
     """
     Inserts urgent request per Section 4.6.
     Returns: (urgent_req, affected_agent_ids, bumped_request_ids)
     """
+    if isinstance(db, PickupRequest):
+        db, urgent_req = urgent_req, db
     now = datetime.now(timezone.utc)
     agents = db.query(Agent).all()
     if not agents:
@@ -397,7 +435,7 @@ async def insert_urgent_request(
         existing = agent_routes[agent.id]
         eval_res = await evaluate_agent_insertion(agent, urgent_req, existing, now)
         if eval_res is not None:
-            if best_candidate is None or eval_res["extra_time"] < best_candidate["extra_time"]:
+            if best_candidate is None or eval_res["score"] < best_candidate["score"]:
                 best_candidate = eval_res
 
     bumped_requests: List[uuid.UUID] = []

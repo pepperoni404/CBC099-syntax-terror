@@ -72,7 +72,7 @@ async def create_pickup_request(payload: CreatePickupRequest, db: Session = Depe
 
     # Automatically trigger scheduler to assign to agent
     if new_request.priority.lower() == "urgent":
-        await insert_urgent_request(new_request, db)
+        await insert_urgent_request(db, new_request)
     else:
         await run_scheduler(db)
 
