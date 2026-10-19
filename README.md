@@ -1,4 +1,4 @@
-﻿# Smart Courier Pickup Scheduling System
+# Smart Courier Pickup Scheduling System
 
 ## Quick Start
 
@@ -7,20 +7,12 @@
 
 ### Run Everything
 
-`ash
-git clone <your-repo-url>
-cd "CBC 2.0"
-docker compose up --build
-`
-
+Just clone the repo and run Docker
 That's it. The application will be available at:
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
-
+| http://localhost:3000 |
 ### Default Login Credentials
 
 | Username | Password |
